@@ -1,6 +1,8 @@
-import librosa, librosa.display
+import librosa
+import librosa.display
 import numpy as np
-import os, fnmatch
+import os
+import fnmatch
 from tqdm import tqdm
 
 import itertools
@@ -13,12 +15,14 @@ from sklearn.metrics import precision_score, accuracy_score
 from sklearn.metrics import confusion_matrix, f1_score, classification_report
 from sklearn.svm import SVC
 
-path = '../data/Dataset/IRMAS_Training_Data/'
+path = 'dataset/IRMAS_Training_Data/'
 
 data = []
 labels = []
 features = []
-instuments = ['cel', 'cla', 'flu', 'gac', 'gel', 'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
+              'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+
 
 def plot(cnf, classes):
     plt.imshow(cnf, interpolation='nearest', cmap=plt.cm.Blues)
@@ -34,10 +38,11 @@ def plot(cnf, classes):
         plt.text(j, i, format(cnf[i, j], fmt),
                  horizontalalignment="center",
                  color="white" if cnf[i, j] > thresh else "black")
-    
+
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
+
 
 def calculatemfcc(y, sampling):
     S = librosa.feature.melspectrogram(y=y, sr=sampling, n_mels=128)
@@ -45,12 +50,14 @@ def calculatemfcc(y, sampling):
     vector = np.mean(mfcc, axis=1)
     return vector
 
+
 def openfiles():
     for root, dirs, files in os.walk(path):
         for f in fnmatch.filter(files, '*.wav'):
             data.append(os.path.join(root, f))
 
     print('Files: ', len(data))
+
 
 def labeling():
     for f in data:
@@ -60,6 +67,7 @@ def labeling():
                 break
 
     print('Labels: ', len(labels))
+
 
 def main():
 
@@ -73,7 +81,7 @@ def main():
     for i, f in tqdm(enumerate(data)):
         try:
             y, sr = librosa.load(f, sr=44100)
-            y/=y.max()
+            y /= y.max()
             if len(y) < 2:
                 print("error this one")
                 continue
@@ -112,6 +120,7 @@ def main():
     plt.figure()
     plot(cnf, classes=instuments)
     plt.show()
+
 
 if __name__ == '__main__':
     main()
