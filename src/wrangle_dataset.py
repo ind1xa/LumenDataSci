@@ -5,9 +5,18 @@ import os
 
 path = 'dataset/IRMAS_Training_Data/'
 
+def add_blanking(all_audio):
+    for audio in all_audio:
+        audio_length = len(audio)
+        gap_length = np.random.randint(0, audio_length)
+        gap_start = np.random.randint(0, audio_length - gap_length)
+        audio[gap_start:gap_start + gap_length] = 0
+    
+
 
 def read_data(path_to_root):
     categories = os.listdir(path_to_root)
+    all_audio = []
 
     for category in categories:
         if category == '.DS_Store':
@@ -23,11 +32,21 @@ def read_data(path_to_root):
             path_to_file = os.path.join(path_to_category, file)
             print(path_to_file)
 
+            audio, sampling_rate = librosa.load(path_to_file)
+
+            print('Audio: ', audio)
+            all_audio.append(audio)
+            exit()
+    
+    return all_audio
+
     # print('Categories: ', categories)
 
 
 def main():
-    read_data(path)
+    audio = read_data(path)
+    insert_noise(audio)
+
 
 
 if __name__ == '__main__':
