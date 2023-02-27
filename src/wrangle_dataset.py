@@ -7,6 +7,14 @@ import itertools as it
 
 path = 'dataset/IRMAS_Training_Data/'
 
+def add_blanking(all_audio):
+    for audio in all_audio:
+        audio_length = len(audio)
+        gap_length = np.random.randint(0, audio_length)
+        gap_start = np.random.randint(0, audio_length - gap_length)
+        audio[gap_start:gap_start + gap_length] = 0
+    
+
 
 def scale_volume(audio, factor=1.0):
     return factor * audio
@@ -76,6 +84,7 @@ def mfcc_to_audio(mfcc, sampling_rate):
 
 def read_data(path_to_root):
     categories = os.listdir(path_to_root)
+    all_audio = []
 
     for category in categories:
         if category == '.DS_Store':
@@ -93,6 +102,7 @@ def read_data(path_to_root):
 
             audio, sampling_rate = librosa.load(path_to_file)
 
+<<<<<<< HEAD
             volume_scaling = [0.2, 0.5, 1.0, 1.5]
             shift_percent = [-0.5, -0.25, 0.25, 0.5]
             stretch_rate = [0.5, 0.75, 1.0, 1.25, 1.5]
@@ -124,12 +134,21 @@ def read_data(path_to_root):
             sf.write('test_original.wav', audio, sampling_rate)
 
             exit()
+=======
+            print('Audio: ', audio)
+            all_audio.append(audio)
+            exit()
+    
+    return all_audio
+>>>>>>> 6f1a5a16d16f94311eba3720a68327823c4e0e26
 
     # print('Categories: ', categories)
 
 
 def main():
-    read_data(path)
+    audio = read_data(path)
+    insert_noise(audio)
+
 
 
 if __name__ == '__main__':
