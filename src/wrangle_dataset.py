@@ -4,16 +4,20 @@ import librosa
 import soundfile as sf
 import os
 import itertools as it
+from tqdm import tqdm
 
 path = 'dataset/IRMAS_Training_Data/'
 
-def add_blanking(all_audio):
-    for audio in all_audio:
+
+def add_blanking(audio, n_blank=1, percent=0.1):
+    for _ in range(n_blank):
         audio_length = len(audio)
-        gap_length = np.random.randint(0, audio_length)
-        gap_start = np.random.randint(0, audio_length - gap_length)
-        audio[gap_start:gap_start + gap_length] = 0
-    
+        blank_length = int(audio_length * percent)
+        blank = np.zeros(blank_length)
+        index = np.random.randint(audio_length - blank_length)
+        audio[index:index + blank_length] = blank
+
+    return audio
 
 
 def scale_volume(audio, factor=1.0):
@@ -27,7 +31,7 @@ def shift_audio(audio, sampling_rate, shift_percent):
 
 def stretch_audio(audio, rate=1.0):
     input_length = len(audio)
-    audio = librosa.effects.time_stretch(audio, rate)
+    audio = librosa.effects.time_stretch(y=audio, rate=rate)
 
     if len(audio) > input_length:
         max_offset = len(audio) - input_length
@@ -45,20 +49,12 @@ def stretch_audio(audio, rate=1.0):
 
 
 def pitch_shift(audio, sampling_rate, n_steps):
-    return librosa.effects.pitch_shift(audio, sampling_rate, n_steps)
+    return librosa.effects.pitch_shift(y=audio, sr=sampling_rate, n_steps=n_steps)
 
 
 def add_noise(audio, stddev):
     noise = np.random.normal(0, stddev, len(audio))
     return audio + noise
-
-
-def add_reverb(audio, sampling_rate, delay=0.5, decay=0.5):
-    return librosa.effects.reverb(audio, delay, decay)
-
-
-def add_echo(audio, sampling_rate, delay=0.5, decay=0.5):
-    return librosa.effects.echo(audio, sampling_rate, delay, decay)
 
 
 def add_blanking(audio, sampling_rate, n_blanks):
@@ -102,45 +98,60 @@ def read_data(path_to_root):
 
             audio, sampling_rate = librosa.load(path_to_file)
 
-<<<<<<< HEAD
-            volume_scaling = [0.2, 0.5, 1.0, 1.5]
-            shift_percent = [-0.5, -0.25, 0.25, 0.5]
-            stretch_rate = [0.5, 0.75, 1.0, 1.25, 1.5]
-            pitch_shift_steps = [-2, -1, 0, 1, 2]
+            volume_scaling = [0.4, 1.0, 1.5]
+            shift_percent = [-0.33, 0.25, 0.5]
+            stretch_rate = [0.5, 1.0, 1.4]
+            pitch_shift_steps = [-2, 0, 1]
 
             audio_stddev = np.std(audio)
-            noise_stddev = [0.0, 0.1 * audio_stddev, 0.2 * audio_stddev,
-                            0.3 * audio_stddev, 0.4 * audio_stddev]
+            noise_stddev = [0.0, 0.1 * audio_stddev, 0.3 * audio_stddev]
 
-            reverb_delay = [0.5, 1.0, 1.5, 2.0]
-            reverb_decay = [0.5, 1.0, 1.5, 2.0]
+            n_blanks = [0, 1, 2]
 
-            echo_delay = [0.5, 1.0, 1.5, 2.0]
-            echo_decay = [0.5, 1.0, 1.5, 2.0]
+            product = it.product(volume_scaling, shift_percent, stretch_rate,
+                                 pitch_shift_steps, noise_stddev, n_blanks)
 
-            n_blanks = [0, 1, 2, 3, 4]
+            sf.write('example/test_original.wav', audio, sampling_rate)
+
+            for p in tqdm(product, total=len(volume_scaling) * len(shift_percent) * len(stretch_rate) * len(pitch_shift_steps) * len(noise_stddev) * len(n_blanks)):
+                factor, shift, stretch, pitch, noise, n_blank = p
+
+                audio2 = audio
+
+                if factor != 1.0:
+                    audio2 = scale_volume(audio, factor)
+
+                if shift != 0:
+                    audio2 = shift_audio(audio2, sampling_rate, shift)
+
+                if stretch != 1.0:
+                    audio2 = stretch_audio(audio2, stretch)
+
+                if pitch != 0:
+                    audio2 = pitch_shift(audio2, sampling_rate, pitch)
+
+                if noise > 0:
+                    audio2 = add_noise(audio2, noise)
+
+                if n_blank > 0:
+                    audio2 = add_blanking(audio2, sampling_rate, n_blank)
+
+                assert len(audio) == len(audio2)
+
+                mfcc = audio_to_mfcc(audio2, sampling_rate)
+                # print('MFCC: ', mfcc)
+
+                audio_debug = mfcc_to_audio(mfcc, sampling_rate)
+
+                # save audio
+                sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
+                         audio_debug, sampling_rate)
 
             #     scaled_audio = scale_volume(audio, factor)
 
             #     print('Scaled audio: ', scaled_audio)
 
-            mfcc = audio_to_mfcc(audio, sampling_rate)
-            print('MFCC: ', mfcc)
-
-            audio_debug = mfcc_to_audio(mfcc, sampling_rate)
-
-            # save audio
-            sf.write('test.wav', audio_debug, sampling_rate)
-            sf.write('test_original.wav', audio, sampling_rate)
-
             exit()
-=======
-            print('Audio: ', audio)
-            all_audio.append(audio)
-            exit()
-    
-    return all_audio
->>>>>>> 6f1a5a16d16f94311eba3720a68327823c4e0e26
 
     # print('Categories: ', categories)
 
@@ -148,7 +159,6 @@ def read_data(path_to_root):
 def main():
     audio = read_data(path)
     insert_noise(audio)
-
 
 
 if __name__ == '__main__':
