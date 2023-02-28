@@ -9,17 +9,6 @@ from tqdm import tqdm
 path = 'dataset/IRMAS_Training_Data/'
 
 
-def add_blanking(audio, n_blank=1, percent=0.1):
-    for _ in range(n_blank):
-        audio_length = len(audio)
-        blank_length = int(audio_length * percent)
-        blank = np.zeros(blank_length)
-        index = np.random.randint(audio_length - blank_length)
-        audio[index:index + blank_length] = blank
-
-    return audio
-
-
 def scale_volume(audio, factor=1.0):
     return factor * audio
 
@@ -104,7 +93,7 @@ def read_data(path_to_root):
             pitch_shift_steps = [-2, 0, 1]
 
             audio_stddev = np.std(audio)
-            noise_stddev = [0.0, 0.1 * audio_stddev, 0.3 * audio_stddev]
+            noise_stddev = [0.0, 0.1 * audio_stddev, 0.2 * audio_stddev]
 
             n_blanks = [0, 1, 2]
 
@@ -141,24 +130,31 @@ def read_data(path_to_root):
                 mfcc = audio_to_mfcc(audio2, sampling_rate)
                 # print('MFCC: ', mfcc)
 
-                audio_debug = mfcc_to_audio(mfcc, sampling_rate)
+                all_audio.append(mfcc)
+
+                # print('MFCC shape: ', mfcc.shape)
+
+                # audio_debug = mfcc_to_audio(mfcc, sampling_rate)
 
                 # save audio
-                sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
-                         audio_debug, sampling_rate)
+                # sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
+                #          audio_debug, sampling_rate)
 
             #     scaled_audio = scale_volume(audio, factor)
 
             #     print('Scaled audio: ', scaled_audio)
 
+            np.savez_compressed('example/test.npz', np.array(all_audio))
+
             exit()
+
+    # save all_audio as parquet
 
     # print('Categories: ', categories)
 
 
 def main():
     audio = read_data(path)
-    insert_noise(audio)
 
 
 if __name__ == '__main__':
