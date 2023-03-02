@@ -6,7 +6,11 @@ import os
 import itertools as it
 from tqdm import tqdm
 
-path = 'dataset/IRMAS_Training_Data/'
+path = 'dataset/IRMAS_Training_Data'
+
+
+instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
+              'org', 'pia', 'sax', 'tru', 'vio', 'voi']
 
 
 def scale_volume(audio, factor=1.0):
@@ -67,9 +71,15 @@ def mfcc_to_audio(mfcc, sampling_rate):
     return audio
 
 
+instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
+              'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+
+
 def read_data(path_to_root):
     categories = os.listdir(path_to_root)
-    all_audio = []
+
+    all_files = []
+    all_files_labels = []
 
     for category in categories:
         if category == '.DS_Store':
@@ -83,78 +93,160 @@ def read_data(path_to_root):
                 continue
 
             path_to_file = os.path.join(path_to_category, file)
-            print(path_to_file)
+            all_files.append(path_to_file)
 
-            audio, sampling_rate = librosa.load(path_to_file)
+            label = np.zeros(len(instuments))
 
-            volume_scaling = [0.4, 1.0, 1.5]
-            shift_percent = [-0.33, 0.25, 0.5]
-            stretch_rate = [0.5, 1.0, 1.4]
-            pitch_shift_steps = [-2, 0, 1]
+            for i, instrument in enumerate(instuments):
+                if instrument in file:
+                    label[i] = 1.
 
-            audio_stddev = np.std(audio)
-            noise_stddev = [0.0, 0.1 * audio_stddev, 0.2 * audio_stddev]
+            all_files_labels.append(label)
 
-            n_blanks = [0, 1, 2]
+    volume_scaling = [0.4, 1.0, 1.5]
+    shift_percent = [-0.33, 0.25, 0.5]
+    stretch_rate = [0.5, 1.0, 1.4]
+    pitch_shift_steps = [-2, 0, 1]
 
-            product = it.product(volume_scaling, shift_percent, stretch_rate,
-                                 pitch_shift_steps, noise_stddev, n_blanks)
+    while True:
 
-            sf.write('example/test_original.wav', audio, sampling_rate)
+        BATCH = 100
 
-            for p in tqdm(product, total=len(volume_scaling) * len(shift_percent) * len(stretch_rate) * len(pitch_shift_steps) * len(noise_stddev) * len(n_blanks)):
-                factor, shift, stretch, pitch, noise, n_blank = p
+        choice = np.random.choice(len(all_files), BATCH, replace=False)
 
-                audio2 = audio
+        # print(all_files[0])
 
-                if factor != 1.0:
-                    audio2 = scale_volume(audio, factor)
+        batch_files = [librosa.load(all_files[i]) for i in choice]
 
-                if shift != 0:
-                    audio2 = shift_audio(audio2, sampling_rate, shift)
+        # print([batch_files[i][1] for i in range(BATCH)])
 
-                if stretch != 1.0:
-                    audio2 = stretch_audio(audio2, stretch)
+        assert all([batch_files[i][1] == 22050 for i in range(BATCH)])
+        assert all([batch_files[i][0].shape == (66150,) for i in range(BATCH)])
 
-                if pitch != 0:
-                    audio2 = pitch_shift(audio2, sampling_rate, pitch)
+        batch_files = [batch_files[i][0] for i in range(BATCH)]
+        batch_labels = [all_files_labels[i] for i in choice]
 
-                if noise > 0:
-                    audio2 = add_noise(audio2, noise)
+        volume_scaling_choice = np.random.choice(volume_scaling, BATCH)
+        shift_percent_choice = np.random.choice(shift_percent, BATCH)
+        stretch_rate_choice = np.random.choice(stretch_rate, BATCH)
+        pitch_shift_steps_choice = np.random.choice(pitch_shift_steps, BATCH)
 
-                if n_blank > 0:
-                    audio2 = add_blanking(audio2, sampling_rate, n_blank)
+        audio_stddevs = np.array([np.std(batch_files[i])
+                                 for i in range(BATCH)])
+        audio_stddev_choice = np.random.choice(audio_stddevs, BATCH)
 
-                assert len(audio) == len(audio2)
+        audio_stddev_choice *= audio_stddevs
 
-                mfcc = audio_to_mfcc(audio2, sampling_rate)
-                # print('MFCC: ', mfcc)
+        input_ = []
+        output_ = []
 
-                all_audio.append(mfcc)
+        for i in range(BATCH):
+            batch_files[i] = scale_volume(
+                batch_files[i], volume_scaling_choice[i])
+            batch_files[i] = shift_audio(
+                batch_files[i], 22050, shift_percent_choice[i])
+            batch_files[i] = stretch_audio(
+                batch_files[i], stretch_rate_choice[i])
+            batch_files[i] = pitch_shift(
+                batch_files[i], 22050, pitch_shift_steps_choice[i])
+            batch_files[i] = add_noise(
+                batch_files[i], audio_stddev_choice[i])
 
-                # print('MFCC shape: ', mfcc.shape)
+            batch_files[i] = audio_to_mfcc(batch_files[i], 22050)
 
-                # audio_debug = mfcc_to_audio(mfcc, sampling_rate)
+            input_.append(batch_files[i])
+            output_.append(batch_labels[i])
 
-                # save audio
-                # sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
-                #          audio_debug, sampling_rate)
+        input_ = np.array(input_, dtype=np.float32)
+        output_ = np.array(output_, dtype=np.float32)
 
-            #     scaled_audio = scale_volume(audio, factor)
+        yield input_, output_
 
-            #     print('Scaled audio: ', scaled_audio)
+    # for category in categories:
+    #     if category == '.DS_Store':
+    #         continue
 
-            np.savez_compressed('example/test.npz', np.array(all_audio))
+    #     path_to_category = os.path.join(path_to_root, category)
+    #     files = os.listdir(path_to_category)
 
-            exit()
+    #     for file in files:
+    #         if file == '.DS_Store':
+    #             continue
 
-    # save all_audio as parquet
+    #         path_to_file = os.path.join(path_to_category, file)
+    #         print(path_to_file)
 
-    # print('Categories: ', categories)
+    #         audio, sampling_rate = librosa.load(path_to_file)
+
+    #         volume_scaling = [0.4, 1.0, 1.5]
+    #         shift_percent = [-0.33, 0.25, 0.5]
+    #         stretch_rate = [0.5, 1.0, 1.4]
+    #         pitch_shift_steps = [-2, 0, 1]
+
+    #         audio_stddev = np.std(audio)
+    #         noise_stddev = [0.0, 0.1 * audio_stddev, 0.2 * audio_stddev]
+
+    #         n_blanks = [0, 1, 2]
+
+    #         product = it.product(volume_scaling, shift_percent, stretch_rate,
+    #                              pitch_shift_steps, noise_stddev, n_blanks)
+
+    #         sf.write('example/test_original.wav', audio, sampling_rate)
+
+    #         for p in tqdm(product, total=len(volume_scaling) * len(shift_percent) * len(stretch_rate) * len(pitch_shift_steps) * len(noise_stddev) * len(n_blanks)):
+    #             factor, shift, stretch, pitch, noise, n_blank = p
+
+    #             audio2 = audio
+
+    #             if factor != 1.0:
+    #                 audio2 = scale_volume(audio, factor)
+
+    #             if shift != 0:
+    #                 audio2 = shift_audio(audio2, sampling_rate, shift)
+
+    #             if stretch != 1.0:
+    #                 audio2 = stretch_audio(audio2, stretch)
+
+    #             if pitch != 0:
+    #                 audio2 = pitch_shift(audio2, sampling_rate, pitch)
+
+    #             if noise > 0:
+    #                 audio2 = add_noise(audio2, noise)
+
+    #             if n_blank > 0:
+    #                 audio2 = add_blanking(audio2, sampling_rate, n_blank)
+
+    #             assert len(audio) == len(audio2)
+
+    #             mfcc = audio_to_mfcc(audio2, sampling_rate)
+    #             # print('MFCC: ', mfcc)
+
+    #             all_audio.append(mfcc)
+
+    #             # print('MFCC shape: ', mfcc.shape)
+
+    #             # audio_debug = mfcc_to_audio(mfcc, sampling_rate)
+
+    #             # save audio
+    #             # sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
+    #             #          audio_debug, sampling_rate)
+
+    #         #     scaled_audio = scale_volume(audio, factor)
+
+    #         #     print('Scaled audio: ', scaled_audio)
+
+    #         yield np.array(all_audio)
+
+    # # save all_audio as parquet
+
+    # # print('Categories: ', categories)
 
 
 def main():
-    audio = read_data(path)
+    for audio, label in read_data(path):
+        audio_debug = mfcc_to_audio(audio, 22050)
+
+        sf.write(f"example/test_{label}.wav", audio_debug, 22050)
 
 
 if __name__ == '__main__':
