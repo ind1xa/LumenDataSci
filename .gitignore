@@ -187,3 +187,10 @@ pyvenv.cfg
 pip-selfcheck.json
 
 # End of https://www.toptal.com/developers/gitignore/api/venv,python
+
+.DS_Store
+.vscode/
+bin/
+include/
+lib/
+share/
