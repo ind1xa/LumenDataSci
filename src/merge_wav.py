@@ -8,19 +8,28 @@ import itertools as it
 from tqdm import tqdm
 
 path = 'dataset/IRMAS_Training_Data/'
+instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
+              'org', 'pia', 'sax', 'tru', 'vio', 'voi']
+all_files = []
 
-def merge_wav(sounds, delays):
-    final = AudioSegment.silent(duration=10*1000)
 
-    #sound2 = AudioSegment.from_wav('example/094__[sax][dru][jaz_blu]1703__3.wav')
-    #sound1 = AudioSegment.from_wav('example/130__[cel][nod][cla]0040__1.wav')
+def merge_wav(path1, path2, delay, name1, name2, id):
 
-    for sound, delay in sounds, delays:
-        final = final.overlay(sound, position=delay*1000)
+    sound1 = AudioSegment.from_wav(path1).normalize()
+    sound2 = AudioSegment.from_wav(path2).normalize()
 
-    sound.export('src/example/overlaid.wav', format='wav')
+    # #normalize
+    # sound1 = sound1 - sound1.dBFS
+    # sound2 = sound2 - sound2.dBFS
 
-def read_data(path_to_root):
+    overflow = len(sound1) - delay*1000
+
+    sound2 = sound2.overlay(sound1, position=delay*1000)
+    sound2 = sound2.overlay(sound1[-overflow:], position=0)
+
+    sound2.export('overlaysNorm/overlaid' + str(id) + name1 + name2+ '.wav', format='wav')
+
+def get_names(path_to_root):
     categories = os.listdir(path_to_root)
     print("ok")
     for category in categories:
@@ -35,12 +44,37 @@ def read_data(path_to_root):
                 continue
 
             path_to_file = os.path.join(path_to_category, file)
-            print(path_to_file)
+            #print(path_to_file)
+
+            file = file.split(']')
+            for i in range(0, len(file)):
+                file[i] = file[i][-3:]
+                if file[i] not in instuments:
+                    file[i] = ''
+                else:
+                    file[i] = '[' + file[i] + ']'
+
+            file = ''.join(file)
+
+            pair = [path_to_file, file]
+            all_files.append(pair)
+
+            #print(file)
 
 
 def main():
     print("ok")
-    audio = read_data(path)
+    get_names(path)
+    counter = 0
+    while (counter < len(all_files)):
+        random_number1 = np.random.randint(0, len(all_files)-1)
+        random_number2 = np.random.randint(0, len(all_files)-1)
+        random_float = np.random.uniform(0, 3)
+        if (all_files[random_number1][1] != all_files[random_number2][1]):
+            merge_wav(all_files[random_number1][0], all_files[random_number2][0], random_float, all_files[random_number1][1], all_files[random_number2][1], counter)
+            counter += 1
+    print(counter)
+    #merge_wav('example/130__[cel][nod][cla]0040__1.wav', 'example/[pia][cla]1308__3.wav', 1.5)
 
 if __name__ == '__main__':
     main()
