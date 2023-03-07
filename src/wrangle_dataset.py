@@ -1,3 +1,5 @@
+import random
+import string
 import pandas as pd
 import numpy as np
 import librosa
@@ -75,7 +77,59 @@ instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
               'org', 'pia', 'sax', 'tru', 'vio', 'voi']
 
 
-def read_data(path_to_root):
+def generate_all_data(path_to_root):
+    categories = os.listdir(path_to_root)
+
+    all_files = []
+    all_files_labels = []
+
+    for category in categories:
+        if category == '.DS_Store':
+            continue
+
+        path_to_category = os.path.join(path_to_root, category)
+        files = os.listdir(path_to_category)
+
+        for file in files:
+            if file == '.DS_Store':
+                continue
+
+            path_to_file = os.path.join(path_to_category, file)
+            all_files.append(path_to_file)
+
+            label = np.zeros(len(instuments))
+
+            for i, instrument in enumerate(instuments):
+                if instrument in file:
+                    label[i] = 1.
+
+            all_files_labels.append(label)
+
+    volume_scaling = [0.4, 1.0, 1.5]
+    shift = [-0.2, 0.0, 0.2]
+    stretch = [0.8, 1.0, 1.2]
+    pitch = [-2, 0, 2]
+    noise = [0.0, 0.01, 0.02]
+    blank = [0, 1, 2]
+
+    for file, label in tqdm(zip(all_files, all_files_labels)):
+        audio, sampling_rate = librosa.load(file)
+
+        for vol, sh, st, p, n, b in it.product(volume_scaling, shift, stretch, pitch, noise, blank):
+
+            audio2 = scale_volume(audio, vol)
+            audio2 = shift_audio(audio2, sampling_rate, sh)
+            audio2 = stretch_audio(audio2, st)
+            audio2 = pitch_shift(audio2, sampling_rate, p)
+            audio2 = add_noise(audio2, n)
+            audio2 = add_blanking(audio2, sampling_rate, b)
+
+            mfcc = audio_to_mfcc(audio2, sampling_rate)
+
+            yield mfcc, label
+
+
+def read_data_generator(path_to_root):
     categories = os.listdir(path_to_root)
 
     all_files = []
@@ -243,10 +297,20 @@ def read_data(path_to_root):
 
 
 def main():
-    for audio, label in read_data(path):
-        audio_debug = mfcc_to_audio(audio, 22050)
+    for mfcc, label in generate_all_data("dataset/IRMAS_Training_Data"):
+        # save mfcc as npz
 
-        sf.write(f"example/test_{label}.wav", audio_debug, 22050)
+        rnd_str = ''.join(random.choices(
+            string.ascii_uppercase + string.digits, k=5))
+
+        has_instruments = [
+            instuments[i]
+            for i, x in enumerate(label)
+            if x >= 0.5
+        ]
+
+        np.savez_compressed(
+            f"dataset/output/{rnd_str}_{'_'.join(has_instruments)}.npz", mfcc)
 
 
 if __name__ == '__main__':
