@@ -308,9 +308,9 @@ def main():
             for i, x in enumerate(label)
             if x >= 0.5
         ]
-
+        
         np.savez_compressed(
-            f"dataset/output/{rnd_str}_{'_'.join(has_instruments)}.npz", mfcc)
+            f"./dataset/output/{rnd_str}_{'_'.join(has_instruments)}.npz", mfcc)
 
 
 if __name__ == '__main__':

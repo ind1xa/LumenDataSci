@@ -1,6 +1,6 @@
-from wrangle_dataset import read_data
+from wrangle_dataset import generate_all_data
 import tensorflow as tf
-
+import evaluation as ev
 
 path = 'dataset/IRMAS_Training_Data'
 
@@ -17,11 +17,20 @@ def main():
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(64, activation='relu'),
         tf.keras.layers.Dense(11, activation='softmax')
-    ])
+    ])  
 
-    gen = read_data(path)
+    """ model = tf.keras.applications.VGG19(
+        include_top=True,
+        weights="imagenet",
+        input_tensor=None,
+        input_shape=None,
+        pooling=None,
+        classes=1000,
+        classifier_activation="softmax",
+    ) """
 
-    # print(next(gen)[1].shape)
+    gen = generate_all_data(path)
+
 
     # exit()
 
@@ -32,11 +41,20 @@ def main():
 
     print("Training model...")
 
-    model.fit_generator(gen, epochs=10)
+    model.fit_generator(gen, epochs=1)
 
-    test = model.evaluate(gen, steps=100)
+    print("Evaluating model...")
 
-    print(test)
+    # get x_test and y_test from generate_all_data
+
+    x_test = next(gen)[0]
+    y_test = next(gen)[1]
+
+    evaluate = ev.Evaluation(model, x_test, y_test)
+
+    #test = model.evaluate(gen, steps=100)
+
+    evaluate.print_evaluation()
 
 
 if __name__ == '__main__':
