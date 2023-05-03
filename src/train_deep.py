@@ -1,16 +1,20 @@
-from wrangle_dataset import read_data
+import random
 import tensorflow as tf
+import numpy as np
+import os
+import keras
 
 
-path = 'dataset/IRMAS_Training_Data'
+path = '../data_out'
 
 
-def main():
-    input_shape = (130, 180, 1)
-    num_classes = 10
+def make_model():
+    input_shape = (100, 130, 1)
+    num_classes = 11
 
     model = tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+        tf.keras.layers.Conv2D(
+            32, (3, 3), activation='relu', input_shape=input_shape),
         tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
         tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
         tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
@@ -22,24 +26,64 @@ def main():
         tf.keras.layers.Dense(num_classes, activation='softmax')
     ])
 
-    gen = read_data(path)
+    return model
 
-    # print(next(gen)[1].shape)
 
-    # exit()
+instuments = ['cel', 'cla', 'flu', 'gac', 'gel',
+              'org', 'pia', 'sax', 'tru', 'vio', 'voi']
 
-    print(model.summary())
+instuments_inv = {
+    x: i for i, x in enumerate(instuments)
+}
+
+
+def generator():
+
+    while True:
+
+        x = random.choice(list(os.listdir(path)))
+
+        if not x.endswith(".npz"):
+            continue
+
+        a = np.load(path + "/" + x, allow_pickle=True)
+
+        out = []
+
+        idx = np.random.choice(len(a["arr_0"]), 1000)
+
+        for y in a["arr_0"][idx]:
+
+            l = [0 for _ in range(11)]
+
+            for z in y[0].split("_")[1:]:
+                l[instuments_inv[z]] = 1
+
+            out.append((y[1], l))
+
+        yield np.array([x[0] for x in out]), np.array([x[1] for x in out])
+
+
+def main():
+
+    model = make_model()
 
     model.compile(optimizer="adam",
                   loss='categorical_crossentropy', metrics=["accuracy"])
 
     print("Training model...")
 
-    model.fit_generator(gen, epochs=10)
+    # x, y = next(generator())
 
-    test = model.evaluate(gen, steps=100)
+    # model.fit(x, y, epochs=10, batch_size=32)
 
-    print(test)
+    model.fit(generator(), epochs=1, steps_per_epoch=10)
+
+    # test = model.evaluate(generator, steps=100)
+
+    model.save("model.h5")
+
+    # print(test)
 
 
 if __name__ == '__main__':
