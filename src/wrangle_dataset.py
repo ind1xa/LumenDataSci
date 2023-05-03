@@ -1,5 +1,8 @@
+from collections import defaultdict
+import json
 import random
 import string
+import zipfile
 import pandas as pd
 import numpy as np
 import librosa
@@ -7,6 +10,8 @@ import soundfile as sf
 import os
 import itertools as it
 from tqdm import tqdm
+import soundfile as sf
+
 
 path = 'dataset/IRMAS_Training_Data'
 
@@ -157,10 +162,10 @@ def read_data_generator(path_to_root):
 
             all_files_labels.append(label)
 
-    volume_scaling = [0.4, 1.0, 1.5]
-    shift_percent = [-0.33, 0.25, 0.5]
-    stretch_rate = [0.5, 1.0, 1.4]
-    pitch_shift_steps = [-2, 0, 1]
+    volume_scaling = [0.7, 1.0]
+    shift_percent = [-0.2, 0.25]
+    stretch_rate = [0.8, 1.0, 1.2]
+    pitch_shift_steps = [-2, 0, 2]
 
     while True:
 
@@ -214,90 +219,22 @@ def read_data_generator(path_to_root):
         input_ = np.array(input_, dtype=np.float32)
         output_ = np.array(output_, dtype=np.float32)
 
-        yield input_, output_
+        for a, b in zip(input_, output_):
+            yield a, b
 
-    # for category in categories:
-    #     if category == '.DS_Store':
-    #         continue
+        # yield input_, output_
 
-    #     path_to_category = os.path.join(path_to_root, category)
-    #     files = os.listdir(path_to_category)
 
-    #     for file in files:
-    #         if file == '.DS_Store':
-    #             continue
-
-    #         path_to_file = os.path.join(path_to_category, file)
-    #         print(path_to_file)
-
-    #         audio, sampling_rate = librosa.load(path_to_file)
-
-    #         volume_scaling = [0.4, 1.0, 1.5]
-    #         shift_percent = [-0.33, 0.25, 0.5]
-    #         stretch_rate = [0.5, 1.0, 1.4]
-    #         pitch_shift_steps = [-2, 0, 1]
-
-    #         audio_stddev = np.std(audio)
-    #         noise_stddev = [0.0, 0.1 * audio_stddev, 0.2 * audio_stddev]
-
-    #         n_blanks = [0, 1, 2]
-
-    #         product = it.product(volume_scaling, shift_percent, stretch_rate,
-    #                              pitch_shift_steps, noise_stddev, n_blanks)
-
-    #         sf.write('example/test_original.wav', audio, sampling_rate)
-
-    #         for p in tqdm(product, total=len(volume_scaling) * len(shift_percent) * len(stretch_rate) * len(pitch_shift_steps) * len(noise_stddev) * len(n_blanks)):
-    #             factor, shift, stretch, pitch, noise, n_blank = p
-
-    #             audio2 = audio
-
-    #             if factor != 1.0:
-    #                 audio2 = scale_volume(audio, factor)
-
-    #             if shift != 0:
-    #                 audio2 = shift_audio(audio2, sampling_rate, shift)
-
-    #             if stretch != 1.0:
-    #                 audio2 = stretch_audio(audio2, stretch)
-
-    #             if pitch != 0:
-    #                 audio2 = pitch_shift(audio2, sampling_rate, pitch)
-
-    #             if noise > 0:
-    #                 audio2 = add_noise(audio2, noise)
-
-    #             if n_blank > 0:
-    #                 audio2 = add_blanking(audio2, sampling_rate, n_blank)
-
-    #             assert len(audio) == len(audio2)
-
-    #             mfcc = audio_to_mfcc(audio2, sampling_rate)
-    #             # print('MFCC: ', mfcc)
-
-    #             all_audio.append(mfcc)
-
-    #             # print('MFCC shape: ', mfcc.shape)
-
-    #             # audio_debug = mfcc_to_audio(mfcc, sampling_rate)
-
-    #             # save audio
-    #             # sf.write(f"example/test_{factor}_{shift}_{stretch}_{pitch}_{noise}_{n_blank}.wav",
-    #             #          audio_debug, sampling_rate)
-
-    #         #     scaled_audio = scale_volume(audio, factor)
-
-    #         #     print('Scaled audio: ', scaled_audio)
-
-    #         yield np.array(all_audio)
-
-    # # save all_audio as parquet
-
-    # # print('Categories: ', categories)
+d = defaultdict(lambda: 0)
 
 
 def main():
-    for mfcc, label in generate_all_data("dataset/IRMAS_Training_Data"):
+
+    cnt = 0
+
+    l = []
+
+    for mfcc, label in tqdm(read_data_generator("../dataset/IRMAS_Training_Data")):
         # save mfcc as npz
 
         rnd_str = ''.join(random.choices(
@@ -308,9 +245,41 @@ def main():
             for i, x in enumerate(label)
             if x >= 0.5
         ]
-        
-        np.savez_compressed(
-            f"./dataset/output/{rnd_str}_{'_'.join(has_instruments)}.npz", mfcc)
+
+        # np.savez_compressed(
+        #     f"./data_out/{rnd_str}_{'_'.join(has_instruments)}.npz", mfcc)
+
+        for ins in has_instruments:
+            d[ins] += 1
+
+        l.append(
+            [f"{rnd_str}_{'_'.join(has_instruments)}", mfcc])
+
+        # debug output from mfcc to audio
+
+        # audio = mfcc_to_audio(mfcc, 22050)
+
+        # save audio as wav
+
+        # librosa.output.write_wav(
+        #     "./debug/" + f"{rnd_str}_{'_'.join(has_instruments)}.wav", audio, 22050)
+
+        # sf.write(
+        #     "../debug/" + f"{rnd_str}_{'_'.join(has_instruments)}.wav", audio, 22050)
+
+        if cnt % 10000 == 0:
+            l = np.array(l)
+
+            print("saving", cnt)
+
+            np.savez_compressed(
+                f"../data_out/{cnt}.npz", l)
+
+            json.dump(d, open(f"../data_out/{cnt}.json", "w"))
+
+            l = []
+
+        cnt += 1
 
 
 if __name__ == '__main__':
